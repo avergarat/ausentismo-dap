@@ -10,7 +10,8 @@ from modules.ui import show_table
 from modules.metrics import (
     build_df, kpis_globales, ia_serie_mensual, dist_tipo_lm,
     dist_duracion, dist_dia_semana, kpis_por_cesfam,
-    comparativo_cortes, META_IA, SEMAFORO_COLORES, emoji_semaforo
+    comparativo_cortes, comparativo_anual_mensual,
+    META_IA, SEMAFORO_COLORES, emoji_semaforo, fmt_peso, fmt_num
 )
 
 st.set_page_config(page_title="Dashboard | Ausentismo DAP", page_icon="📊", layout="wide")
@@ -93,7 +94,7 @@ kpis_display = [
     (col5, "Tasa Gravedad",     f"{g['tasa_gravedad']:.2f}d", None),
     (col6, "Tasa Frecuencia",   f"{g['tasa_frecuencia']:.2f}%",None),
     (col7, "Funcionarios",      f"{g['n_func']:,}",           None),
-    (col8, "Costo total",       f"${g['costo_total']/1e6:.1f}M", None),
+    (col8, "Costo total",       fmt_peso(g['costo_total']), None),
 ]
 for col, lbl, val, delta in kpis_display:
     with col:
@@ -234,8 +235,44 @@ if not cesfam_df.empty:
         'ÍA Acum.','ÍA Mes','TF','TG',
         '% Corta','% Prolong.','Recur ≥5','Costo','Semáforo'
     ]
-    display['Costo'] = display['Costo'].apply(lambda x: f"${x/1e6:.2f}M")
+    display['Costo'] = display['Costo'].apply(lambda x: fmt_peso(x))
     display['Semáforo'] = display['Semáforo'].apply(
         lambda s: f"{'🟢' if s=='VERDE' else '🟡' if s=='AMARILLO' else '🔴'} {s}"
     )
     show_table(display)
+
+st.divider()
+
+# ── Comparativo anual mensual ─────────────────────────────────────────────
+st.subheader("📅 Índice de Ausentismo Comparativo Anual")
+comp = comparativo_anual_mensual(df, dot_prom)
+if not comp.empty and comp['anio'].nunique() > 1:
+    MESES_ORDEN = ['ENE','FEB','MAR','ABR','MAY','JUN',
+                   'JUL','AGO','SEP','OCT','NOV','DIC']
+    años = sorted(comp['anio'].unique())
+    COLORES_A = ['#C00000','#FFC000','#1E8B4C','#006FB9','#5B9BD5']
+    fig_comp = go.Figure()
+    for i, anio in enumerate(años):
+        sub = comp[comp['anio'] == anio].sort_values('mes')
+        fig_comp.add_trace(go.Scatter(
+            x=sub['mes_nom'], y=sub['ia'],
+            mode='lines+markers', name=str(anio),
+            line=dict(color=COLORES_A[i % len(COLORES_A)], width=2.5),
+            marker=dict(size=7),
+            text=[f"{v:.2f}" for v in sub['ia']],
+            textposition='top center',
+            hovertemplate=f"<b>{anio} %{{x}}</b><br>ÍA: %{{y:.3f}}<extra></extra>"
+        ))
+    fig_comp.add_hline(y=META_IA['MENSUAL'], line_dash='dash',
+                        line_color='grey', annotation_text=f"Meta {META_IA['MENSUAL']}")
+    fig_comp.update_layout(
+        height=360,
+        margin=dict(l=20, r=20, t=30, b=80),
+        xaxis=dict(categoryorder='array', categoryarray=MESES_ORDEN, title=''),
+        yaxis=dict(title='ÍA Mensual', gridcolor='#E8EDF5'),
+        plot_bgcolor='white', paper_bgcolor='white',
+        legend=dict(orientation='h', y=-0.3)
+    )
+    st.plotly_chart(fig_comp, use_container_width=True)
+elif not comp.empty:
+    st.caption("Carga datos de más de un año para ver el comparativo anual.")

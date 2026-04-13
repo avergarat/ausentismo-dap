@@ -429,19 +429,189 @@ def get_corte(mes: int) -> str:
 
 
 # ────────────────────────────────────────────────────────────────────────────
+# ÍA mensual por CESFAM (matriz mes × establecimiento)
+# ────────────────────────────────────────────────────────────────────────────
+def ia_mensual_por_cesfam(df: pd.DataFrame,
+                          dotacion_prom: float = DOTACION_PROMEDIO) -> pd.DataFrame:
+    """
+    Retorna pivot table: filas = CESFAM, columnas = mes_key, valores = ÍA mensual.
+    """
+    if df.empty:
+        return pd.DataFrame()
+    dot_por_cesfam = dotacion_prom / max(df['nombre_unidad'].nunique(), 1)
+    agg = (df.groupby(['nombre_unidad', 'mes_key'])
+             .agg(dias=('dias_periodo', 'sum'))
+             .reset_index())
+    agg['ia'] = (agg['dias'] / dot_por_cesfam).round(3)
+    pivot = (agg.pivot(index='nombre_unidad', columns='mes_key', values='ia')
+               .fillna(0))
+    pivot.columns.name = None
+    pivot.index.name = 'CESFAM'
+    pivot = pivot.sort_index()
+    return pivot
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Comparativo anual mensual (multi-año en mismo gráfico)
+# ────────────────────────────────────────────────────────────────────────────
+def comparativo_anual_mensual(df: pd.DataFrame,
+                               dotacion_prom: float = DOTACION_PROMEDIO) -> pd.DataFrame:
+    """
+    Retorna DataFrame con IA mensual agrupado por año y número de mes,
+    listo para graficar líneas comparativas 2024/2025/2026.
+    """
+    if df.empty:
+        return pd.DataFrame()
+    MESES_ES = {1:'ENE',2:'FEB',3:'MAR',4:'ABR',5:'MAY',6:'JUN',
+                7:'JUL',8:'AGO',9:'SEP',10:'OCT',11:'NOV',12:'DIC'}
+    agg = (df.groupby(['anio', 'mes'])
+             .agg(dias=('dias_periodo', 'sum'), n_lm=('rut', 'count'))
+             .reset_index())
+    agg['ia'] = (agg['dias'] / dotacion_prom).round(3)
+    agg['mes_nom'] = agg['mes'].map(MESES_ES)
+    return agg.sort_values(['anio', 'mes'])
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Distribución por tramo etario por CESFAM
+# ────────────────────────────────────────────────────────────────────────────
+def distribucion_edad_cesfam(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Retorna conteos y porcentajes de LM por tramo etario y CESFAM.
+    Tramos: 18-32 años, 33-52 años, 53+ años
+    """
+    if df.empty:
+        return pd.DataFrame()
+    agg = (df.groupby(['nombre_unidad', 'tramo_etario'])
+             .size()
+             .rename('n_lm')
+             .reset_index())
+    total_c = agg.groupby('nombre_unidad')['n_lm'].transform('sum')
+    agg['pct'] = (agg['n_lm'] / total_c * 100).round(1)
+    return agg.rename(columns={'nombre_unidad': 'cesfam', 'tramo_etario': 'tramo'})
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# ÍA y días por género
+# ────────────────────────────────────────────────────────────────────────────
+def ia_por_genero(df: pd.DataFrame,
+                  dotacion_prom: float = DOTACION_PROMEDIO) -> pd.DataFrame:
+    """
+    Retorna días de ausentismo, N° LM e ÍA estimado por género.
+    La dotación por género se estima desde la tabla dotacion si está disponible.
+    """
+    if df.empty:
+        return pd.DataFrame()
+    # Dotación por género desde tabla dotacion
+    df_dot = get_dotacion()
+    dot_genero = {}
+    if not df_dot.empty and 'genero' in df_dot.columns:
+        dot_genero = (df_dot.groupby(
+            df_dot['genero'].str.strip().str.upper())['rut']
+            .count().to_dict())
+    agg = (df.groupby('genero')
+             .agg(n_lm=('rut', 'count'),
+                  dias=('dias_periodo', 'sum'),
+                  costo=('costo', 'sum'),
+                  n_func=('rut', 'nunique'))
+             .reset_index())
+    total_dias = agg['dias'].sum()
+    agg['pct_dias'] = (agg['dias'] / total_dias * 100).round(1) if total_dias > 0 else 0
+    agg['dot_ref'] = agg['genero'].map(dot_genero).fillna(dotacion_prom / 2)
+    agg['ia'] = (agg['dias'] / agg['dot_ref']).round(2)
+    agg['tg'] = (agg['dias'] / agg['n_lm']).round(2)
+    return agg
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# ÍA por planta con dotación de referencia
+# ────────────────────────────────────────────────────────────────────────────
+def ia_por_planta(df: pd.DataFrame,
+                  dotacion_prom: float = DOTACION_PROMEDIO) -> pd.DataFrame:
+    """
+    Retorna ÍA acumulado por planta/estamento usando dotación por planta.
+    """
+    if df.empty:
+        return pd.DataFrame()
+    df_dot = get_dotacion()
+    dot_planta = {}
+    if not df_dot.empty and 'planta' in df_dot.columns:
+        dot_planta = (df_dot.groupby(
+            df_dot['planta'].str.strip().str.upper())['rut']
+            .count().to_dict())
+    n_meses = max(df['mes_key'].nunique(), 1)
+    agg = (df.groupby('planta')
+             .agg(n_lm=('rut', 'count'),
+                  dias=('dias_periodo', 'sum'),
+                  costo=('costo', 'sum'),
+                  n_func=('rut', 'nunique'))
+             .reset_index())
+    total_dias = agg['dias'].sum()
+    agg['pct_dias'] = (agg['dias'] / total_dias * 100).round(1) if total_dias > 0 else 0
+    agg['dot_ref'] = agg['planta'].map(dot_planta).fillna(dotacion_prom / max(len(agg), 1))
+    agg['ia'] = (agg['dias'] / agg['dot_ref']).round(2)
+    agg['tg'] = (agg['dias'] / agg['n_lm']).round(2)
+    return agg.sort_values('ia', ascending=False)
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Día de semana por CESFAM
+# ────────────────────────────────────────────────────────────────────────────
+def dist_dia_semana_por_cesfam(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Retorna pivot: filas = CESFAM, columnas = día de semana, valores = N° LM.
+    """
+    if df.empty:
+        return pd.DataFrame()
+    ORDEN = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
+    NOMBRES = {'Monday':'Lunes','Tuesday':'Martes','Wednesday':'Miércoles',
+               'Thursday':'Jueves','Friday':'Viernes','Saturday':'Sábado','Sunday':'Domingo'}
+    agg = (df.groupby(['nombre_unidad', 'dia_semana'])
+             .size().rename('n_lm').reset_index())
+    pivot = (agg.pivot(index='nombre_unidad', columns='dia_semana', values='n_lm')
+               .reindex(columns=ORDEN, fill_value=0)
+               .fillna(0))
+    pivot.columns = [NOMBRES.get(c, c) for c in pivot.columns]
+    pivot.index.name = 'CESFAM'
+    pivot = pivot.sort_index()
+    return pivot
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Helpers de formato monetario
+# ────────────────────────────────────────────────────────────────────────────
+def fmt_peso(valor: float, millones: bool = False) -> str:
+    """Formatea valor como moneda con signo peso y separador de miles."""
+    if millones:
+        return f"${valor/1_000_000:,.2f}M"
+    return f"${valor:,.0f}"
+
+def fmt_num(valor) -> str:
+    """Número con separador de miles."""
+    return f"{int(valor):,}"
+
+
+# ────────────────────────────────────────────────────────────────────────────
 # Resumen completo para reportes
 # ────────────────────────────────────────────────────────────────────────────
 def resumen_completo(**filtros) -> dict:
     df = build_df(**filtros)
+    dot = filtros.pop('dotacion_prom', DOTACION_PROMEDIO)
     return {
-        'df':              df,
-        'globales':        kpis_globales(df),
-        'serie_mensual':   ia_serie_mensual(df),
-        'por_cesfam':      kpis_por_cesfam(df),
-        'por_planta':      kpis_por_planta(df),
-        'por_funcionario': kpis_por_funcionario(df),
-        'tipo_lm':         dist_tipo_lm(df),
-        'duracion':        dist_duracion(df),
-        'dia_semana':      dist_dia_semana(df),
-        'recurrencia':     analisis_recurrencia(df),
+        'df':                    df,
+        'globales':              kpis_globales(df, dot),
+        'serie_mensual':         ia_serie_mensual(df, dot),
+        'por_cesfam':            kpis_por_cesfam(df, dot),
+        'por_planta':            kpis_por_planta(df),
+        'ia_por_planta':         ia_por_planta(df, dot),
+        'por_funcionario':       kpis_por_funcionario(df),
+        'tipo_lm':               dist_tipo_lm(df),
+        'duracion':              dist_duracion(df),
+        'dia_semana':            dist_dia_semana(df),
+        'recurrencia':           analisis_recurrencia(df),
+        'comparativo_anual':     comparativo_anual_mensual(df, dot),
+        'edad_cesfam':           distribucion_edad_cesfam(df),
+        'ia_mensual_cesfam':     ia_mensual_por_cesfam(df, dot),
+        'dia_semana_cesfam':     dist_dia_semana_por_cesfam(df),
+        'por_genero':            ia_por_genero(df, dot),
     }
