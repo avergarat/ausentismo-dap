@@ -12,7 +12,6 @@ from modules.metrics import (
 )
 from modules.ui import show_table
 
-st.set_page_config(page_title="Por Funcionario | Ausentismo", page_icon="👤", layout="wide")
 init_db()
 _inject_css()
 

@@ -9,7 +9,6 @@ from modules.db import get_catalogo, get_periodo, init_db
 from modules.metrics import resumen_completo
 from modules.reports import generar_word, generar_html
 
-st.set_page_config(page_title="Reportes | Ausentismo", page_icon="📄", layout="wide")
 init_db()
 _inject_css()
 

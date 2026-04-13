@@ -15,7 +15,6 @@ from modules.metrics import (
     META_IA, SEMAFORO_COLORES, emoji_semaforo, fmt_peso, fmt_num
 )
 
-st.set_page_config(page_title="Dashboard | Ausentismo DAP", page_icon="📊", layout="wide")
 init_db()
 _inject_css()
 

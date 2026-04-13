@@ -10,7 +10,6 @@ from modules.db import get_catalogo, get_periodo, init_db
 from modules.metrics import build_df, kpis_por_cesfam, ia_serie_mensual, dist_tipo_lm, META_IA
 from modules.ui import show_table
 
-st.set_page_config(page_title="Por CESFAM | Ausentismo DAP", page_icon="🏥", layout="wide")
 init_db()
 _inject_css()
 

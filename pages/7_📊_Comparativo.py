@@ -16,7 +16,6 @@ from modules.metrics import (
 )
 from modules.ui import show_table
 
-st.set_page_config(
     page_title="Comparativo | Ausentismo DAP", page_icon="📊", layout="wide"
 )
 init_db()

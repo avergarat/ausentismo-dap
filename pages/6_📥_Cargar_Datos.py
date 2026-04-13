@@ -8,7 +8,6 @@ from modules.db import get_cargas_log, get_stats, init_db
 from modules.loader import smart_load
 from modules.ui import show_table
 
-st.set_page_config(page_title="Cargar Datos | Ausentismo", page_icon="📥", layout="wide")
 init_db()
 _inject_css()
 

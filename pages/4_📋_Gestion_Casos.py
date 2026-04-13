@@ -8,7 +8,6 @@ import pandas as pd
 from modules.db import get_gestion_casos, init_db, get_catalogo
 from modules.ui import show_table
 
-st.set_page_config(page_title="Gestión Casos | Ausentismo", page_icon="📋", layout="wide")
 init_db()
 _inject_css()
 
