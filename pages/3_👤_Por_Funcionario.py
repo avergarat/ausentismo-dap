@@ -2,6 +2,7 @@
 Análisis por funcionario individual — búsqueda, ranking, semáforo
 """
 import streamlit as st
+from modules.sidebar_css import inject as _inject_css
 import plotly.express as px
 import pandas as pd
 from modules.db import get_catalogo, get_periodo, init_db, query_df
@@ -13,6 +14,7 @@ from modules.ui import show_table
 
 st.set_page_config(page_title="Por Funcionario | Ausentismo", page_icon="👤", layout="wide")
 init_db()
+_inject_css()
 
 st.title("👤 Análisis por Funcionario")
 st.divider()

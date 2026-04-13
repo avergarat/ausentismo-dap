@@ -2,6 +2,7 @@
 Carga incremental de archivos Excel — dotación y licencias médicas
 """
 import streamlit as st
+from modules.sidebar_css import inject as _inject_css
 import pandas as pd
 from modules.db import get_cargas_log, get_stats, init_db
 from modules.loader import smart_load
@@ -9,6 +10,7 @@ from modules.ui import show_table
 
 st.set_page_config(page_title="Cargar Datos | Ausentismo", page_icon="📥", layout="wide")
 init_db()
+_inject_css()
 
 st.title("📥 Carga de Datos")
 st.caption("Carga incremental: solo se insertan registros nuevos, los duplicados se omiten automáticamente.")

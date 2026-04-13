@@ -3,6 +3,7 @@ Análisis Comparativo — ÍA por centro, planta, edad, género, día de semana
 Replica los análisis del cuadro de mando Excel de la DAP-SSMC.
 """
 import streamlit as st
+from modules.sidebar_css import inject as _inject_css
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
@@ -19,6 +20,7 @@ st.set_page_config(
     page_title="Comparativo | Ausentismo DAP", page_icon="📊", layout="wide"
 )
 init_db()
+_inject_css()
 
 # ── CSS ───────────────────────────────────────────────────────────────────
 st.markdown("""

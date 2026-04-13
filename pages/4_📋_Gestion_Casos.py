@@ -2,6 +2,7 @@
 Estado del Programa de Gestión de Casos — Acompañamiento, COMPIN, etc.
 """
 import streamlit as st
+from modules.sidebar_css import inject as _inject_css
 import plotly.express as px
 import pandas as pd
 from modules.db import get_gestion_casos, init_db, get_catalogo
@@ -9,6 +10,7 @@ from modules.ui import show_table
 
 st.set_page_config(page_title="Gestión Casos | Ausentismo", page_icon="📋", layout="wide")
 init_db()
+_inject_css()
 
 st.title("📋 Gestión de Casos de Ausentismo")
 st.divider()

@@ -93,7 +93,7 @@ def _bullet(doc, text, level=1):
     r = p.add_run(text)
     r.font.size = Pt(10); r.font.name = 'Calibri'
 
-def _kpi_box(doc, kpis: list[tuple]):
+def _kpi_box(doc, kpis: list):
     """kpis = [(label, value, color_hex), ...]"""
     n = len(kpis)
     tbl = doc.add_table(rows=2, cols=n)
@@ -166,6 +166,12 @@ def generar_word(resumen: dict, periodo_desc: str = '', dotacion_prom: float = 1
     tipo   = resumen.get('tipo_lm', pd.DataFrame())
     dur    = resumen.get('duracion', pd.DataFrame())
     gest   = resumen.get('df', pd.DataFrame())
+    comp_anual   = resumen.get('comparativo_anual', pd.DataFrame())
+    edad_cesfam  = resumen.get('edad_cesfam', pd.DataFrame())
+    genero       = resumen.get('por_genero', pd.DataFrame())
+    ia_planta    = resumen.get('ia_por_planta', pd.DataFrame())
+    dia_sem      = resumen.get('dia_semana', pd.DataFrame())
+    dia_sem_csf  = resumen.get('dia_semana_cesfam', pd.DataFrame())
 
     doc = Document()
     sec = doc.sections[0]
@@ -326,8 +332,99 @@ def generar_word(resumen: dict, periodo_desc: str = '', dotacion_prom: float = 1
             filas
         )
 
-    # ── VI. TOP FUNCIONARIOS ─────────────────────────────────────────────────
-    _h1(doc, 'VI. Funcionarios Prioritarios por Ausentismo')
+    # ── VI. ANÁLISIS COMPARATIVO ─────────────────────────────────────────────
+    _h1(doc, 'VI. Análisis Comparativo')
+
+    # 6.1 Comparativo anual
+    _h2(doc, '6.1 Comparativo de ÍA Mensual por Año')
+    if not comp_anual.empty:
+        anos = sorted(comp_anual['anio'].unique())
+        MESES_ES = {1:'ENE',2:'FEB',3:'MAR',4:'ABR',5:'MAY',6:'JUN',
+                    7:'JUL',8:'AGO',9:'SEP',10:'OCT',11:'NOV',12:'DIC'}
+        headers = ['Mes'] + [str(a) for a in anos]
+        filas = []
+        for mes in range(1, 13):
+            fila = [MESES_ES.get(mes, str(mes))]
+            for anio in anos:
+                sub = comp_anual[(comp_anual['anio'] == anio) & (comp_anual['mes'] == mes)]
+                fila.append(f"{sub['ia'].iloc[0]:.3f}" if not sub.empty else '—')
+            filas.append(fila)
+        _table(doc, headers, filas, font_size=9)
+
+    # 6.2 Distribución por tramo etario
+    _h2(doc, '6.2 Distribución por Tramo Etario')
+    if not edad_cesfam.empty:
+        pivot_e = edad_cesfam.pivot_table(
+            index='cesfam', columns='tramo', values='n_lm', aggfunc='sum', fill_value=0
+        ).reset_index()
+        filas = [[str(r.get('cesfam',''))] + [f"{r.get(c,0):,.0f}" for c in pivot_e.columns[1:]]
+                 for _, r in pivot_e.iterrows()]
+        _table(doc, list(pivot_e.columns), filas, font_size=9)
+    else:
+        # fallback: global age brackets
+        edad_global = (resumen.get('df', pd.DataFrame())
+                       .groupby('tramo_etario').size().rename('n_lm').reset_index()
+                       if not resumen.get('df', pd.DataFrame()).empty else pd.DataFrame())
+        if not edad_global.empty:
+            filas = [[str(r['tramo_etario']), f"{r['n_lm']:,}"] for _, r in edad_global.iterrows()]
+            _table(doc, ['Tramo Etario', 'N° LM'], filas)
+
+    # 6.3 Por género
+    _h2(doc, '6.3 Ausentismo por Género')
+    if not genero.empty:
+        filas = []
+        for _, r in genero.iterrows():
+            filas.append([
+                str(r.get('genero','')),
+                f"{r.get('n_lm',0):,}",
+                f"{r.get('dias',0):,}",
+                f"{r.get('ia',0):.3f}",
+                f"{r.get('pct_dias',0):.1f}%",
+                f"{r.get('tg',0):.2f}",
+            ])
+        _table(doc,
+            ['Género', 'N° LM', 'Días', 'ÍA Estimado', '% Días', 'Tasa Gravedad'],
+            filas
+        )
+
+    # 6.4 ÍA detallado por planta
+    _h2(doc, '6.4 Índice de Ausentismo por Planta/Estamento')
+    if not ia_planta.empty:
+        filas = []
+        for _, r in ia_planta.iterrows():
+            filas.append([
+                str(r.get('planta','')),
+                f"{r.get('n_lm',0):,}",
+                f"{r.get('dias',0):,}",
+                f"{r.get('n_func',0)}",
+                f"{r.get('ia',0):.3f}",
+                f"{r.get('tg',0):.2f}",
+                f"{r.get('pct_dias',0):.1f}%",
+            ])
+        _table(doc,
+            ['Planta', 'N° LM', 'Días', 'Func.', 'ÍA', 'Tasa Gravedad', '% Días'],
+            filas, font_size=9
+        )
+
+    # 6.5 Distribución por día de semana
+    _h2(doc, '6.5 LM por Día de Inicio')
+    if not dia_sem.empty:
+        filas = [[str(r.get('dia_es', r.get('dia_semana',''))),
+                  f"{r.get('n_lm',0):,}",
+                  f"{r.get('pct',0):.1f}%"]
+                 for _, r in dia_sem.iterrows()]
+        _table(doc, ['Día de inicio', 'N° LM', '% del Total'], filas)
+
+    # 6.6 Día de semana por CESFAM
+    _h2(doc, '6.6 LM por Día de Inicio — por Establecimiento')
+    if not dia_sem_csf.empty:
+        headers = ['CESFAM'] + list(dia_sem_csf.columns)
+        filas = [[str(idx)] + [f"{int(v):,}" for v in row]
+                 for idx, row in dia_sem_csf.iterrows()]
+        _table(doc, headers, filas, font_size=8)
+
+    # ── VII. TOP FUNCIONARIOS ─────────────────────────────────────────────────
+    _h1(doc, 'VII. Funcionarios Prioritarios por Ausentismo')
     _info_box(doc,
         '⚠️  Este listado es de uso RESTRINGIDO — contiene datos sensibles de funcionarios.\n'
         'Uso exclusivo del Departamento de Calidad de Vida Laboral y Dirección DAP.',
@@ -354,19 +451,19 @@ def generar_word(resumen: dict, periodo_desc: str = '', dotacion_prom: float = 1
             filas, font_size=8
         )
 
-    # ── VII. RECOMENDACIONES ──────────────────────────────────────────────────
-    _h1(doc, 'VII. Recomendaciones Estratégicas')
+    # ── VIII. RECOMENDACIONES ─────────────────────────────────────────────────
+    _h1(doc, 'VIII. Recomendaciones Estratégicas')
 
-    _h2(doc, '7.1 Acciones Inmediatas')
+    _h2(doc, '8.1 Acciones Inmediatas')
     recs = _generar_recomendaciones(g, cesfam, func)
     for rec in recs['inmediatas']:
         _bullet(doc, rec)
 
-    _h2(doc, '7.2 Acciones de Mediano Plazo')
+    _h2(doc, '8.2 Acciones de Mediano Plazo')
     for rec in recs['mediano']:
         _bullet(doc, rec)
 
-    _h2(doc, '7.3 Alertas Críticas')
+    _h2(doc, '8.3 Alertas Críticas')
     _info_box(doc, '\n'.join(recs['alertas']), C['rojo'])
 
     # ── Pie ──────────────────────────────────────────────────────────────────
@@ -451,6 +548,42 @@ def _generar_recomendaciones(globales: dict, cesfam: pd.DataFrame, func: pd.Data
 
 
 # ────────────────────────────────────────────────────────────────────────────
+# Helpers HTML para tablas especiales
+# ────────────────────────────────────────────────────────────────────────────
+def _html_comparativo_anual(df: pd.DataFrame) -> str:
+    """Genera tabla HTML comparativo anual (filas=mes, columnas=año)."""
+    if df.empty:
+        return '<p><em>Sin datos de comparativo anual.</em></p>'
+    MESES_ES = {1:'ENE',2:'FEB',3:'MAR',4:'ABR',5:'MAY',6:'JUN',
+                7:'JUL',8:'AGO',9:'SEP',10:'OCT',11:'NOV',12:'DIC'}
+    anos = sorted(df['anio'].unique())
+    header = '<tr><th>Mes</th>' + ''.join(f'<th>{a}</th>' for a in anos) + '</tr>'
+    rows = ''
+    for mes in range(1, 13):
+        row = f'<tr><td><strong>{MESES_ES.get(mes, mes)}</strong></td>'
+        for anio in anos:
+            sub = df[(df['anio'] == anio) & (df['mes'] == mes)]
+            row += f'<td>{sub["ia"].iloc[0]:.3f}</td>' if not sub.empty else '<td>—</td>'
+        row += '</tr>'
+        rows += row
+    return f'<table class="data-table"><thead>{header}</thead><tbody>{rows}</tbody></table>'
+
+
+def _html_pivot(df: pd.DataFrame) -> str:
+    """Genera tabla HTML desde pivot DataFrame (índice = primera columna)."""
+    if df.empty:
+        return '<p><em>Sin datos.</em></p>'
+    cols = list(df.columns)
+    header = '<tr><th>' + df.index.name or 'CESFAM' + '</th>' + ''.join(f'<th>{c}</th>' for c in cols) + '</tr>'
+    rows = ''
+    for idx, row in df.iterrows():
+        rows += '<tr><td><strong>' + str(idx) + '</strong></td>'
+        rows += ''.join(f'<td>{int(v):,}</td>' for v in row)
+        rows += '</tr>'
+    return f'<table class="data-table"><thead>{header}</thead><tbody>{rows}</tbody></table>'
+
+
+# ────────────────────────────────────────────────────────────────────────────
 # GENERADOR DE INFORME HTML
 # ────────────────────────────────────────────────────────────────────────────
 def generar_html(resumen: dict, periodo_desc: str = '') -> str:
@@ -460,6 +593,12 @@ def generar_html(resumen: dict, periodo_desc: str = '') -> str:
     planta  = resumen.get('por_planta', pd.DataFrame())
     tipo    = resumen.get('tipo_lm', pd.DataFrame())
     func    = resumen.get('por_funcionario', pd.DataFrame())
+    comp_anual  = resumen.get('comparativo_anual', pd.DataFrame())
+    edad_cesfam = resumen.get('edad_cesfam', pd.DataFrame())
+    genero      = resumen.get('por_genero', pd.DataFrame())
+    ia_planta   = resumen.get('ia_por_planta', pd.DataFrame())
+    dia_sem     = resumen.get('dia_semana', pd.DataFrame())
+    dia_sem_csf = resumen.get('dia_semana_cesfam', pd.DataFrame())
 
     hoy = datetime.now().strftime('%d/%m/%Y %H:%M')
 
@@ -640,6 +779,42 @@ def generar_html(resumen: dict, periodo_desc: str = '') -> str:
   <div class="section">
     <h2>Distribución por Tipo de Licencia Médica</h2>
     {df_to_html(tipo, ['tipo_lm','n_lm','pct_lm','dias','pct_dias','costo'] if not tipo.empty else None)}
+  </div>
+
+  <!-- Comparativo Anual -->
+  <div class="section">
+    <h2>Comparativo de ÍA Mensual por Año</h2>
+    {_html_comparativo_anual(comp_anual)}
+  </div>
+
+  <!-- Por Edad -->
+  <div class="section">
+    <h2>Distribución por Tramo Etario</h2>
+    {df_to_html(edad_cesfam, ['cesfam','tramo','n_lm','pct'] if not edad_cesfam.empty else None)}
+  </div>
+
+  <!-- Por Género -->
+  <div class="section">
+    <h2>Ausentismo por Género</h2>
+    {df_to_html(genero, ['genero','n_lm','dias','ia','pct_dias','tg'] if not genero.empty else None)}
+  </div>
+
+  <!-- ÍA por Planta -->
+  <div class="section">
+    <h2>Índice de Ausentismo por Planta / Estamento</h2>
+    {df_to_html(ia_planta, ['planta','n_lm','dias','n_func','ia','tg','pct_dias'] if not ia_planta.empty else None)}
+  </div>
+
+  <!-- Día de Semana -->
+  <div class="section">
+    <h2>LM por Día de Inicio de la Semana</h2>
+    {df_to_html(dia_sem, ['dia_es','n_lm','pct'] if not dia_sem.empty and 'dia_es' in dia_sem.columns else None)}
+  </div>
+
+  <!-- Día de Semana por CESFAM -->
+  <div class="section">
+    <h2>LM por Día de Inicio — por Establecimiento</h2>
+    {_html_pivot(dia_sem_csf)}
   </div>
 
   <!-- Top Funcionarios -->

@@ -2,6 +2,7 @@
 Dashboard principal — KPIs globales, semáforo, tendencia mensual
 """
 import streamlit as st
+from modules.sidebar_css import inject as _inject_css
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
@@ -16,6 +17,7 @@ from modules.metrics import (
 
 st.set_page_config(page_title="Dashboard | Ausentismo DAP", page_icon="📊", layout="wide")
 init_db()
+_inject_css()
 
 st.markdown("""
 <style>

@@ -2,6 +2,7 @@
 Generación de informes Word y HTML con filtros personalizados
 """
 import streamlit as st
+from modules.sidebar_css import inject as _inject_css
 import io
 from datetime import datetime
 from modules.db import get_catalogo, get_periodo, init_db
@@ -10,6 +11,7 @@ from modules.reports import generar_word, generar_html
 
 st.set_page_config(page_title="Reportes | Ausentismo", page_icon="📄", layout="wide")
 init_db()
+_inject_css()
 
 st.title("📄 Generación de Informes")
 st.caption("Genera informes Word y HTML con los filtros y período que necesites.")

@@ -2,6 +2,7 @@
 Análisis granular por CESFAM / Establecimiento
 """
 import streamlit as st
+from modules.sidebar_css import inject as _inject_css
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
@@ -11,6 +12,7 @@ from modules.ui import show_table
 
 st.set_page_config(page_title="Por CESFAM | Ausentismo DAP", page_icon="🏥", layout="wide")
 init_db()
+_inject_css()
 
 st.title("🏥 Análisis por Establecimiento")
 st.divider()
