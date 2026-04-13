@@ -85,7 +85,7 @@ with col_html:
     - Vista responsive para pantalla e impresión
     - Tablas con colores semáforo
     - KPI cards visuales
-    - Exportable como PDF desde el navegador
+    - Exportable como PDF desde el navegador (Ctrl+P)
     """)
     if st.button("🚀 Generar HTML", type="primary", use_container_width=True):
         with st.spinner("Generando informe HTML..."):
@@ -103,7 +103,7 @@ with col_html:
                         mime="text/html",
                         use_container_width=True
                     )
-                    st.success("✅ Informe HTML generado. Abre en el navegador y usa Ctrl+P para imprimir/guardar como PDF.")
+                    st.success("✅ Informe HTML generado. Descarga y abre en el navegador, o usa Ctrl+P para guardar como PDF.")
             except Exception as e:
                 st.error(f"Error al generar: {e}")
                 st.exception(e)
