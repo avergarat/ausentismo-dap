@@ -103,15 +103,16 @@ with tab1:
     if 'proceso' in filtrado.columns:
         cols_show.append('proceso')
 
-    show_table(
-        filtrado[cols_show].rename(columns={
-            'rut':'RUT','nombre':'Nombre','unidad':'CESFAM',
-            'planta':'Planta','genero':'Género',
-            'n_lm_total':'N° LM','dias_total':'Días',
-            'costo_total':'Costo','tg':'TG',
-            'n_lm_ult_anio':'LM últ.año','proceso':'Proceso'
-        })
-    )
+    tbl = filtrado[cols_show].rename(columns={
+        'rut':'RUT','nombre':'Nombre','unidad':'CESFAM',
+        'planta':'Planta','genero':'Género',
+        'n_lm_total':'N° LM','dias_total':'Días',
+        'costo_total':'Costo','tg':'TG',
+        'n_lm_ult_anio':'LM últ.año','proceso':'Proceso'
+    }).copy()
+    if 'Costo' in tbl.columns:
+        tbl['Costo'] = tbl['Costo'].apply(lambda x: f"${float(x):,.0f}")
+    show_table(tbl)
 
     # Exportar CSV
     csv_data = filtrado.to_csv(index=False).encode('utf-8-sig')
@@ -179,6 +180,10 @@ with tab2:
                 ['fecha_inicio','fecha_termino','dias_periodo','tipo_lm','costo','nombre_unidad']
             ].sort_values('fecha_inicio', ascending=False)
             hist.columns = ['Inicio','Término','Días','Tipo LM','Costo','Unidad']
+            hist = hist.copy()
+            hist['Costo'] = hist['Costo'].apply(lambda x: f"${float(x):,.0f}")
+            hist['Inicio'] = hist['Inicio'].astype(str).str[:10]
+            hist['Término'] = hist['Término'].astype(str).str[:10]
             show_table(hist)
 
             # Gráfico timeline
@@ -222,6 +227,7 @@ with tab3:
         st.subheader("Top 50 funcionarios más recurrentes")
         top_rec = rec_df.head(50)[['rut','nombre','unidad','planta','n_lm','dias_total','costo_total']].copy()
         top_rec.columns = ['RUT','Nombre','Unidad','Planta','N° LM','Días','Costo']
+        top_rec['Costo'] = top_rec['Costo'].apply(lambda x: f"${float(x):,.0f}")
         top_rec['Semáforo'] = top_rec.apply(
             lambda r: f"{emoji_semaforo(semaforo_funcionario(r['Días'], r['N° LM']))} {semaforo_funcionario(r['Días'], r['N° LM'])}",
             axis=1

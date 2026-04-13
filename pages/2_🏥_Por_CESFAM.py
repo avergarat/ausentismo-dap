@@ -153,6 +153,9 @@ if cesfam_sel:
                        .reset_index()
                        .sort_values('dias', ascending=False))
         planta_c['pct'] = (planta_c['dias'] / planta_c['dias'].sum() * 100).round(1)
+        planta_c = planta_c.rename(columns={'planta':'Planta','n_lm':'N° LM',
+                                             'dias':'Días','pct':'% Días'})
+        planta_c['Días'] = planta_c['Días'].apply(lambda x: f"{int(x):,}")
         show_table(planta_c)
 
         st.markdown("**Top 20 funcionarios con más días de LM en este CESFAM**")
@@ -162,4 +165,8 @@ if cesfam_sel:
                        .reset_index()
                        .sort_values('dias', ascending=False)
                        .head(20))
+        top_func = top_func.rename(columns={'rut':'RUT','nombre':'Nombre',
+                                             'n_lm':'N° LM','dias':'Días','costo':'Costo'})
+        top_func['Costo'] = top_func['Costo'].apply(lambda x: f"${float(x):,.0f}")
+        top_func['Días'] = top_func['Días'].apply(lambda x: f"{int(x):,}")
         show_table(top_func)
