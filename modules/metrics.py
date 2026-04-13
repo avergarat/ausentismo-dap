@@ -51,6 +51,9 @@ def build_df(**filtros) -> pd.DataFrame:
     if df.empty:
         return df
 
+    # Eliminar columnas duplicadas (pueden surgir del LEFT JOIN licencias+dotacion)
+    df = df.loc[:, ~df.columns.duplicated()]
+
     # Parseo de fechas
     df['fecha_inicio'] = pd.to_datetime(df['fecha_inicio'], errors='coerce')
     df['fecha_termino'] = pd.to_datetime(df['fecha_termino'], errors='coerce')

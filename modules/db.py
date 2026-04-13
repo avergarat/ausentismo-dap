@@ -250,8 +250,9 @@ def get_licencias(
 
     cond = ("WHERE " + " AND ".join(where)) if where else ""
     sql = f"""
-        SELECT l.*, d.fecha_nacimiento AS d_fecha_nac, d.isapre, d.afp,
-               d.fecha_ingreso_servicio, d.remuneracion, d.comuna, d.ciudad
+        SELECT l.*, d.fecha_nacimiento AS d_fecha_nac, d.isapre,
+               d.afp AS d_afp, d.fecha_ingreso_servicio,
+               d.remuneracion, d.comuna, d.ciudad
         FROM licencias l
         LEFT JOIN dotacion d ON l.rut = d.rut
         {cond}

@@ -25,43 +25,53 @@ _TABLE_CSS = """
 _css_injected = False
 
 
-def _fmt_cell(val):
-    """
-    Formatea un valor individual para mostrar en tabla:
-    - int  → separador de miles:  1.234.567
-    - float sin decimales → igual que int
-    - float con decimales → hasta 2 decimales con separador: 1.234,56
-    - strings ya formateados ($ , %, letras) → sin cambios
-    """
-    if pd.isna(val):
-        return '—'
-    if isinstance(val, bool):
-        return str(val)
-    if isinstance(val, int):
-        return f"{val:,}"
-    if isinstance(val, float):
-        if val == int(val):           # sin decimales reales → entero
-            return f"{int(val):,}"
-        return f"{val:,.2f}"
-    return str(val)
+def _fmt_int(x):
+    try:
+        if pd.isna(x):
+            return '—'
+        return f"{int(x):,}"
+    except Exception:
+        return str(x)
+
+
+def _fmt_float(x):
+    try:
+        if pd.isna(x):
+            return '—'
+        f = float(x)
+        i = int(f)
+        if f == i:
+            return f"{i:,}"
+        return f"{f:,.2f}"
+    except Exception:
+        return str(x)
 
 
 def _autoformat(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Recorre el DataFrame y aplica _fmt_cell() a todas las columnas
-    que sean numéricas (int64 / float64) y no estén ya formateadas
-    como strings con $, %, etc.
+    Recorre el DataFrame y aplica separador de miles a columnas numéricas.
+    Ignora strings, fechas, booleanos y cualquier columna que falle.
     """
     out = df.copy()
     for col in out.columns:
-        dtype = out[col].dtype
-        if pd.api.types.is_integer_dtype(dtype):
-            out[col] = out[col].apply(lambda x: f"{int(x):,}" if pd.notna(x) else '—')
-        elif pd.api.types.is_float_dtype(dtype):
-            out[col] = out[col].apply(
-                lambda x: (f"{int(x):,}" if x == int(x) else f"{x:,.2f}") if pd.notna(x) else '—'
-            )
-        # strings → ya están formateados, no tocar
+        try:
+            s = out[col]
+            # Si el resultado de out[col] es un DataFrame (cols duplicadas), saltar
+            if isinstance(s, pd.DataFrame):
+                continue
+            dtype = s.dtype
+            if pd.api.types.is_bool_dtype(dtype):
+                continue
+            if pd.api.types.is_datetime64_any_dtype(dtype):
+                out[col] = s.astype(str).str[:10].replace('NaT', '—')
+                continue
+            if pd.api.types.is_integer_dtype(dtype):
+                out[col] = s.apply(_fmt_int)
+            elif pd.api.types.is_float_dtype(dtype):
+                out[col] = s.apply(_fmt_float)
+            # object / string: ya formateados, no tocar
+        except Exception:
+            pass  # columna problemática → dejar sin cambio
     return out
 
 
