@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 import pandas as pd
 from modules.db import get_catalogo, get_periodo, init_db
 from modules.metrics import build_df, kpis_por_cesfam, ia_serie_mensual, dist_tipo_lm, META_IA
+from modules.ui import show_table
 
 st.set_page_config(page_title="Por CESFAM | Ausentismo DAP", page_icon="🏥", layout="wide")
 init_db()
@@ -61,7 +62,7 @@ if not cesfam_df.empty:
     cols_show = ['Establecimiento','N° LM','Días','Func.','ÍA Acum.','ÍA Mes',
                  'TF','TG','% Corta','% ≤3d','% Prolong.','Recur ≥5','Costo','Semáforo']
     cols_show = [c for c in cols_show if c in disp.columns]
-    st.dataframe(disp[cols_show], use_container_width=True, hide_index=True)
+    show_table(disp[cols_show])
 
 st.divider()
 
@@ -152,7 +153,7 @@ if cesfam_sel:
                        .reset_index()
                        .sort_values('dias', ascending=False))
         planta_c['pct'] = (planta_c['dias'] / planta_c['dias'].sum() * 100).round(1)
-        st.dataframe(planta_c, use_container_width=True, hide_index=True)
+        show_table(planta_c)
 
         st.markdown("**Top 20 funcionarios con más días de LM en este CESFAM**")
         top_func = (df_c.groupby(['rut','nombre'])
@@ -161,4 +162,4 @@ if cesfam_sel:
                        .reset_index()
                        .sort_values('dias', ascending=False)
                        .head(20))
-        st.dataframe(top_func, use_container_width=True, hide_index=True)
+        show_table(top_func)

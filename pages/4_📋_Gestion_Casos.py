@@ -5,6 +5,7 @@ import streamlit as st
 import plotly.express as px
 import pandas as pd
 from modules.db import get_gestion_casos, init_db, get_catalogo
+from modules.ui import show_table
 
 st.set_page_config(page_title="Gestión Casos | Ausentismo", page_icon="📋", layout="wide")
 init_db()
@@ -95,12 +96,12 @@ def mostrar_tabla(df_sub):
     cols = ['rut','nombre','vigente','proceso','establecimiento','estamento',
             'compin','responsable','carta','ult_ausentismo','aus_ajustado']
     cols = [c for c in cols if c in df_sub.columns]
-    st.dataframe(df_sub[cols].rename(columns={
+    show_table(df_sub[cols].rename(columns={
         'rut':'RUT','nombre':'Nombre','vigente':'Vigente','proceso':'Proceso',
         'establecimiento':'CESFAM','estamento':'Estamento',
         'compin':'COMPIN','responsable':'Responsable',
         'carta':'Carta','ult_ausentismo':'Últ.Aus.','aus_ajustado':'Aus.Ajust.'
-    }), use_container_width=True, hide_index=True)
+    }))
 
 with tabs[0]:
     vigentes = df[df['vigente'].str.upper().str.strip()=='VIGENTE']

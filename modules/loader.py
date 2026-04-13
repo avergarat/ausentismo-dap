@@ -75,32 +75,80 @@ def _clean_int(val) -> Optional[int]:
     except Exception:
         return None
 
-def _load_wb_sheet(file_path: str, sheet_name: str) -> list[tuple]:
+def _load_wb_sheet(file_path: str, sheet_name: str) -> list:
     wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+    if sheet_name not in wb.sheetnames:
+        wb.close()
+        raise KeyError(
+            f"Hoja '{sheet_name}' no encontrada en el archivo.\n"
+            f"Hojas disponibles: {wb.sheetnames}"
+        )
     ws = wb[sheet_name]
     rows = [row for row in ws.iter_rows(values_only=True)
             if any(c is not None for c in row)]
     wb.close()
     return rows
 
+
+def _find_sheet(wb, candidates: list, fallback_contains: list = None) -> Optional[str]:
+    """
+    Busca la primera hoja cuyo nombre (strip, upper) coincida con algún candidato.
+    Si no encuentra, busca por contenido parcial (fallback_contains).
+    Retorna None si no encuentra nada.
+    """
+    names_upper = {s.strip(): s.strip().upper() for s in wb.sheetnames}
+    cands_upper = [c.upper() for c in candidates]
+
+    # Coincidencia exacta (case-insensitive)
+    for sheet, upper in names_upper.items():
+        if upper in cands_upper:
+            return sheet
+
+    # Coincidencia parcial
+    if fallback_contains:
+        for sheet, upper in names_upper.items():
+            if any(k.upper() in upper for k in fallback_contains):
+                return sheet
+
+    return None
+
 # ────────────────────────────────────────────────────────────────────────────
-# Carga Dotación desde Dotación_03_2023.xlsx
+# Carga Dotación desde archivos de dotación
 # ────────────────────────────────────────────────────────────────────────────
+# Nombres conocidos para la hoja principal de dotación
+_DOT_SIN_DUP = ['SIN DUPLICADOS', 'DOT LIMPIA', 'DOT_LIMPIA', 'TIT-CONTRATA MARZO 2026',
+                'TIT-CONTRA MARZO 2026', 'TIT-CONT', 'DOTACION DAP']
+# Nombres conocidos para la hoja extendida (con datos contractuales extra)
+_DOT_DUP2 = ['DUPLICADOS (2)', 'DUPLICADOS', 'DOTACION NOVIEMBRE 30-11-20 (2)',
+             'TIT-CONTRATA MARZO 2026 (2)', 'TIT-CONTRA (2)', 'HSA MARZO 2026']
+
+
 def load_dotacion(file_path: str) -> dict:
     """
-    Carga dotación desde las hojas SIN DUPLICADOS y DUPLICADOS (2).
-    Retorna dict con stats.
+    Carga dotación. Detecta automáticamente los nombres reales de las hojas
+    (compatible con distintas versiones del archivo de dotación DAP).
     """
     init_db()
     archivo = os.path.basename(file_path)
 
-    # Hoja principal: SIN DUPLICADOS
-    rows_sin = _load_wb_sheet(file_path, 'SIN DUPLICADOS')
+    wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+    sheet_sin = _find_sheet(wb, _DOT_SIN_DUP, fallback_contains=['SIN DUPLIC', 'DOT'])
+    sheet_dup2 = _find_sheet(wb, _DOT_DUP2, fallback_contains=['DUPLIC'])
+    wb.close()
+
+    if not sheet_sin:
+        raise ValueError(
+            f"No se encontró hoja de dotación en '{archivo}'.\n"
+            f"Se esperaba una de: {_DOT_SIN_DUP}"
+        )
+
+    # Hoja principal
+    rows_sin = _load_wb_sheet(file_path, sheet_sin)
     header_sin = rows_sin[0]
 
-    # Hoja extendida: DUPLICADOS (2)
-    rows_dup2 = _load_wb_sheet(file_path, 'DUPLICADOS (2)')
-    header_dup2 = rows_dup2[0]
+    # Hoja extendida (opcional — datos contractuales adicionales)
+    rows_dup2 = _load_wb_sheet(file_path, sheet_dup2) if sheet_dup2 else []
+    header_dup2 = rows_dup2[0] if rows_dup2 else []
 
     # Índices hoja extendida (75 cols)
     idx2 = {str(h).strip(): i for i, h in enumerate(header_dup2) if h}
@@ -155,8 +203,9 @@ def load_dotacion(file_path: str) -> dict:
         records.append(rec)
 
     ins, upd = upsert_dotacion(records)
+    hojas_usadas = sheet_sin + (f' + {sheet_dup2}' if sheet_dup2 else '')
     carga_id = log_carga(
-        archivo, 'SIN DUPLICADOS + DUPLICADOS (2)', 'dotacion',
+        archivo, hojas_usadas, 'dotacion',
         ins, upd, notas=f'{len(records)} registros procesados'
     )
     return {'insertados': ins, 'actualizados': upd, 'total': len(records), 'carga_id': carga_id}
@@ -263,14 +312,40 @@ def load_licencias(file_path: str, sheet_name: str = None) -> dict:
     }
 
 
+_LM_SHEET_NAMES = ['SALIDA', '31.03.2026', 'LM', 'LICENCIAS', 'BASE LM', 'AUSENTISMOS']
+_LM_KEYWORDS = ['SALIDA', 'LM', 'LICENCIA', 'AUSENTISMO']
+
+
 def _detect_lm_sheet(wb) -> str:
-    """Detecta la hoja transaccional de LM (más filas o patrón de fecha)."""
-    import re
+    """
+    Detecta la hoja transaccional de LM.
+    Orden de prioridad:
+      1. Patrón de fecha DD.MM.YYYY
+      2. Nombre exacto conocido (SALIDA, LM, etc.)
+      3. Nombre con keyword parcial
+      4. Hoja con más filas (fallback final)
+    """
     fecha_pat = re.compile(r'^\d{2}\.\d{2}\.\d{4}$')
-    for name in wb.sheetnames:
-        if fecha_pat.match(name.strip()):
-            return name
-    # Fallback: hoja con más filas
+    names_upper = {s.strip(): s.strip().upper() for s in wb.sheetnames}
+
+    # 1. Patrón de fecha
+    for sheet in names_upper:
+        if fecha_pat.match(sheet):
+            return sheet
+
+    # 2. Nombre exacto conocido
+    for sheet, upper in names_upper.items():
+        if upper in _LM_SHEET_NAMES:
+            return sheet
+
+    # 3. Keyword parcial (excluir hoja AUSENTISMO de gestión de casos)
+    for sheet, upper in names_upper.items():
+        if upper == 'AUSENTISMO':
+            continue  # Esa es la hoja de gestión, no de LM
+        if any(k in upper for k in _LM_KEYWORDS):
+            return sheet
+
+    # 4. Hoja con más filas
     best, best_count = wb.sheetnames[0], 0
     for name in wb.sheetnames:
         ws = wb[name]
@@ -356,12 +431,14 @@ def smart_load(file_path: str, progress_cb=None) -> list[dict]:
 
     results = []
 
-    # ¿Es archivo de dotación?
-    if 'SIN DUPLICADOS' in sheets:
+    # ¿Es archivo de dotación? (detectar por nombres conocidos de hoja)
+    sheets_upper = [s.strip().upper() for s in sheets]
+    es_dotacion = any(s in sheets_upper for s in [n.upper() for n in _DOT_SIN_DUP])
+    if es_dotacion:
         if progress_cb:
             progress_cb(0.2, 'Cargando dotación...')
         r = load_dotacion(file_path)
-        r['hoja'] = 'Dotación (SIN DUPLICADOS + DUPLICADOS (2))'
+        r['hoja'] = 'Dotación (hojas detectadas automáticamente)'
         results.append(r)
 
     # ¿Tiene hoja de gestión?
@@ -372,16 +449,20 @@ def smart_load(file_path: str, progress_cb=None) -> list[dict]:
         r['hoja'] = 'Gestión de Casos (AUSENTISMO)'
         results.append(r)
 
-    # ¿Tiene hoja transaccional de LM? (DD.MM.YYYY o hoja con más filas)
-    import re
+    # ¿Tiene hoja transaccional de LM?
     fecha_pat = re.compile(r'^\d{2}\.\d{2}\.\d{4}$')
-    lm_sheet = next((s for s in sheets if fecha_pat.match(s)), None)
-    # También buscar por nombre parcial
+    lm_sheet = next((s for s in sheets if fecha_pat.match(s.strip())), None)
     if not lm_sheet:
-        keywords = ['LM', 'LICENCIA', 'AUSENTISMO', 'BASE']
         lm_sheet = next(
-            (s for s in sheets if any(k in s.upper() for k in keywords)
-             and s != 'AUSENTISMO'), None
+            (s for s in sheets
+             if s.strip().upper() in _LM_SHEET_NAMES
+             and s.strip().upper() != 'AUSENTISMO'), None
+        )
+    if not lm_sheet:
+        lm_sheet = next(
+            (s for s in sheets
+             if any(k in s.upper() for k in _LM_KEYWORDS)
+             and s.strip().upper() != 'AUSENTISMO'), None
         )
     if lm_sheet:
         if progress_cb:

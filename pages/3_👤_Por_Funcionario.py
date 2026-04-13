@@ -9,6 +9,7 @@ from modules.metrics import (
     build_df, kpis_por_funcionario, analisis_recurrencia,
     semaforo_funcionario, emoji_semaforo, color_semaforo, SEMAFORO_COLORES
 )
+from modules.ui import show_table
 
 st.set_page_config(page_title="Por Funcionario | Ausentismo", page_icon="👤", layout="wide")
 init_db()
@@ -102,15 +103,14 @@ with tab1:
     if 'proceso' in filtrado.columns:
         cols_show.append('proceso')
 
-    st.dataframe(
+    show_table(
         filtrado[cols_show].rename(columns={
             'rut':'RUT','nombre':'Nombre','unidad':'CESFAM',
             'planta':'Planta','genero':'Género',
             'n_lm_total':'N° LM','dias_total':'Días',
             'costo_total':'Costo','tg':'TG',
             'n_lm_ult_anio':'LM últ.año','proceso':'Proceso'
-        }),
-        use_container_width=True, hide_index=True, height=500
+        })
     )
 
     # Exportar CSV
@@ -179,7 +179,7 @@ with tab2:
                 ['fecha_inicio','fecha_termino','dias_periodo','tipo_lm','costo','nombre_unidad']
             ].sort_values('fecha_inicio', ascending=False)
             hist.columns = ['Inicio','Término','Días','Tipo LM','Costo','Unidad']
-            st.dataframe(hist, use_container_width=True, hide_index=True)
+            show_table(hist)
 
             # Gráfico timeline
             if len(hist) > 0:
@@ -226,4 +226,4 @@ with tab3:
             lambda r: f"{emoji_semaforo(semaforo_funcionario(r['Días'], r['N° LM']))} {semaforo_funcionario(r['Días'], r['N° LM'])}",
             axis=1
         )
-        st.dataframe(top_rec, use_container_width=True, hide_index=True)
+        show_table(top_rec)

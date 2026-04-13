@@ -6,6 +6,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 from modules.db import get_catalogo, get_periodo, init_db
+from modules.ui import show_table
 from modules.metrics import (
     build_df, kpis_globales, ia_serie_mensual, dist_tipo_lm,
     dist_duracion, dist_dia_semana, kpis_por_cesfam,
@@ -237,4 +238,4 @@ if not cesfam_df.empty:
     display['Semáforo'] = display['Semáforo'].apply(
         lambda s: f"{'🟢' if s=='VERDE' else '🟡' if s=='AMARILLO' else '🔴'} {s}"
     )
-    st.dataframe(display, use_container_width=True, hide_index=True)
+    show_table(display)

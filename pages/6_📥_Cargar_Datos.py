@@ -5,6 +5,7 @@ import streamlit as st
 import pandas as pd
 from modules.db import get_cargas_log, get_stats, init_db
 from modules.loader import smart_load
+from modules.ui import show_table
 
 st.set_page_config(page_title="Cargar Datos | Ausentismo", page_icon="📥", layout="wide")
 init_db()
@@ -131,7 +132,7 @@ cargas = get_cargas_log()
 if cargas.empty:
     st.info("Aún no se han realizado cargas.")
 else:
-    st.dataframe(
+    show_table(
         cargas[['id','archivo','hoja','tipo','registros_nuevos',
                 'registros_actualizados','periodo_ini','periodo_fin',
                 'fecha_carga','notas']].rename(columns={
@@ -139,8 +140,7 @@ else:
             'registros_nuevos':'Nuevos','registros_actualizados':'Actualizados',
             'periodo_ini':'Período Ini','periodo_fin':'Período Fin',
             'fecha_carga':'Fecha Carga','notas':'Notas'
-        }),
-        use_container_width=True, hide_index=True
+        })
     )
 
 # ── Zona de riesgo ────────────────────────────────────────────────────────
